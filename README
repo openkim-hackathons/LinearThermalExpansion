@@ -1,0 +1,173 @@
+===============================================================================
+*
+* LinearThermalExpansionCoeffCubic__TD_522633393614_002
+*
+* Author: Mingjian Wen, wenxx151@umn.edu, University of Minnesota
+* Date: 2019-06-10
+* Version: 002
+*
+===============================================================================
+
+This Test Driver computes the linear thermal expansion coefficient of a cubic
+crystal (including fcc, bcc, sc, and diamond) at a specific temperature under a
+given hydrostatic pressure (usually zero) of a single given species.
+
+The linear thermal expansion coefficient is defined as:
+
+alpha = (1/L[T]) * lim{epsilon->0} (L[T+epsilon*T]-L[T]) / (epsilon*T),
+
+where L[T] is the length (e.g., lattice constant) at temperature T and
+lim{epsilon->0} means that epsilon approaches zero.
+
+Here, LAMMPS with NPT ensemble is used to do the computation, see below for
+details about the algorithm.
+
+
+===============================================================================
+*
+*                       Section 1: Summary of input variables
+*
+===============================================================================
+
+In this Test Driver (TD), the user specifies the following variables through stdin
+using a Jinja template file named 'pipeline.stdin.tpl' contained in the directory
+of a Test which uses this TD (the sequence in which they are specified must be the
+same as below, with 'modelname' being the first):
+
+- 'modelname'
+Type: string
+Description: Contains the extended-id of a valid KIM Model.  This can be specified
+by '@< MODELNAME >@' in pipeline.stdin.tpl.  When the pipeline mates a Model with
+the Test, it will automatically replace '@< MODELNAME >@' with the Model's extended-ID.
+
+- 'species'
+Type: string
+Description: Contains the abbreviation for the element from which the lattice will
+be constructed (e.g. Si, Au, Al, etc.).
+
+- 'mass'
+Type: double
+Description: The molar mass (in g/mol) of the element specified by 'species',
+e.g. 29.98 for Aluminum.
+
+- 'latticetypeinput'
+Type: string
+Description: The type of cubic lattice to construct.  This can be any of "bcc",
+"fcc", "sc", or "diamond".  Note that this is completely case-insensitive, e.g.
+"FcC" and "fCC" are both valid specifiers.
+
+- 'latticeconst'
+Type: double
+Description: The lattice constant (in meter) about which the initial configuration
+will build. Since LAMMPS NPT ensemble is used here, this value will not affect the
+final linear thermal expansion coefficient, but a value corresponds to the lattice
+constant at the specified temperature would decrease the simulation time.
+
+- 'temperature'
+Type: double
+Description: The temperature (in Kelvin) at which the linear thermal expansion
+coefficient is computed.
+
+- 'pressure'
+Type: double
+Description: The hydrostatic pressure (in Pa) under which the linear thermal expansion
+coefficient is computed.  This value is usually taken to be zero.
+
+
+===============================================================================
+*
+*                          Section 2: Invocation of LAMMPS
+*
+===============================================================================
+
+The `lammps.in.template' is a LAMMPS input file that is used to calculate the
+equilibrated volume of the system at a given temperature and pressure. The `rpls_*'
+in this file are placeholders that will be replaced.
+
+The LAMMPS script builds a supercell with 10*10*10 conventional (orthogonal)
+unit cells with periodic boundary conditions.  The system is then evolved under NPT
+ensemble.  The total timesteps is set to 2000*1000, and at each 1000th step, the
+averaged temperature and volume (ignoring the first 5000 unstable steps) will be
+checked against the specified values.  Once they are pretty close, (Here, we require
+that the averaged temperature to be within plus or minus 0.2K of the specified
+temperature, and the averaged pressure to be within plus or minus 0.2Bar of the
+specified pressure.) halt LAMMPS.  Thus, the averaged volume at this temperature
+is obtained.
+
+
+===============================================================================
+*
+*                      Section 3: Algorithm to compute alpha
+*
+===============================================================================
+
+The python script `runner' is used to compute the linear thermal expansion (alpha)
+at a given temperature and pressure.
+
+This script first reads the input parameters.  Then it generates a temperature list
+with 5 temperatures with interval dT, that is [T-2*dT, T-dT, T, T+dT, T+2dT], where
+T is the temperature at which we want to compute the linear thermal expansion
+coefficient.  Here, we let dT = 20K. So if we want to compute alpha at T = 300K, the
+temperature list would be [260, 280, 300, 320, 340] K.  If T < 2*dT, we let T = 2*dT,
+otherwise the first value (possibly the second) in the temperature list coule be
+nonphysical negative value.  In other words, the computed alpha at all temperatures
+lower than 2*dT (40K here) would be the same, because the temperature list are
+the same, i.e., [0, dT, 2*dT, 3*dT, 4*dT].
+
+Five subprocesses will then be involved to compute the volume of the system at each
+temperature via LAMMPS seperatly and simultaneously.  Let's denote the volume list as
+[V1, V2, V3, V4, V5].  With the temperatures and the corresponding volumes at hand,
+least square regression is used to fit a linear line for the cubic root of the
+volume against the temperature.  Then the linear thermal expansion coefficient can
+be computed by,
+
+                alpha = slope/T
+
+where, slope is the slope of the fitted line.
+
+
+===============================================================================
+*
+*                            Files contained
+*
+===============================================================================
+
+
+The following files are in the directory (before any compilation is performed):
+
+test_template/
+  Directory containing the template files used by the KIM `testgenie` utility
+  to create a set of Tests used by this driver.
+
+LICENSE
+     The GNU Lesser General Public License (GLGPL) Version 2.1 file.
+
+Makefile
+  Makefile to build executables with GNU or Intel compilers.
+
+README
+  This file.
+
+generator.py
+  Script used to create the 'test_generator.json' file that's used by the KIM
+  `testgenie` utility
+
+kimspec.edn
+  Metadata file specific to KIM.
+
+lammps.in.template
+  LAMMPS input template file.
+
+periodic_table.txt
+  Used by generator.py to look up the atomic numbers and masses of the elements
+  we want to create Tests for.
+
+result.edn.tpl
+  Template file to report the Test Results in EDN format.
+
+runner
+  A python script that implements the Test Driver.
+
+test_generator.json
+  File used by the KIM `testgenie` utility that provides variables used to
+  create Tests from the files in test_template/

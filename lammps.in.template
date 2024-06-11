@@ -1,0 +1,186 @@
+kim init {rpls_modelname} metal unit_conversion_mode
+
+# Set logfile
+log output/lmp_T{rpls_temp}.log
+
+# periodic boundary conditions along all three dimensions
+boundary p p p
+
+# Set neighbor skin
+variable neigh_skin equal 2.0*${{_u_distance}}
+neighbor ${{neigh_skin}} bin
+
+read_data structure_template
+
+change_box all triclinic
+
+kim interactions {rpls_species}
+
+# initial volume
+variable      v equal vol        # assign formula
+variable      V0 equal ${{v}}    # evaluate initial value
+variable      V0_metal equal ${{V0}}/(${{_u_distance}}*${{_u_distance}}*${{_u_distance}})
+variable      V0_metal_times1000 equal ${{V0_metal}}*1000
+
+print "Initial system volume: ${{V0_metal}} Angstroms^3"
+
+# set the time step to 0.001 picoseconds
+variable timestep_converted equal 0.001*${{_u_time}}
+timestep ${{timestep_converted}}
+
+variable temp_converted equal {rpls_temp}*${{_u_temperature}}
+variable Tdamp_converted equal 0.01*${{_u_time}}
+variable press_converted equal {rpls_press}*${{_u_pressure}}
+variable Pdamp_converted equal 0.1*${{_u_time}}
+
+# create initial velocities consistent with the chosen temperature
+velocity      all create ${{temp_converted}} 17 mom yes rot yes
+
+# set NPT ensemble for all atoms
+fix           ensemble all npt temp ${{temp_converted}} ${{temp_converted}} ${{Tdamp_converted}} &
+              x ${{press_converted}} ${{press_converted}} ${{Pdamp_converted}} &
+              y ${{press_converted}} ${{press_converted}} ${{Pdamp_converted}} &
+              z ${{press_converted}} ${{press_converted}} ${{Pdamp_converted}} &
+              xy ${{press_converted}} ${{press_converted}} ${{Pdamp_converted}} &
+              xz ${{press_converted}} ${{press_converted}} ${{Pdamp_converted}} &
+              yz ${{press_converted}} ${{press_converted}} ${{Pdamp_converted}}
+
+# compute the time averages of pressure, temperature, and volume, respectively
+# ignore the first 5000 timesteps
+variable      etotal_metal equal etotal/${{_u_energy}}
+variable      pe_metal equal pe/${{_u_energy}}
+variable      T_metal equal temp/${{_u_temperature}}
+variable      V_metal equal vol/(${{_u_distance}}*${{_u_distance}}*${{_u_distance}})
+variable      P_metal equal press/${{_u_pressure}}
+
+# NEEDED TO COMPUTE THERMAL EXPANSION TENSOR
+# cell parameters and positions are already in metal units
+# from the data file that defines the structure_index
+# so we don't need to convert units
+variable      a_metal equal cella
+variable      b_metal equal cellb
+variable      c_metal equal cellc
+variable      rawalpha equal cellalpha
+variable      rawbeta  equal cellbeta
+variable      rawgamma equal cellgamma
+
+fix           avgmyTemp  all ave/time 5 20 100 v_T_metal  ave running start 1000
+fix           avgmyPress all ave/time 5 20 100 v_P_metal  ave running start 1000
+fix           avgmyVol   all ave/time 5 20 100 v_V_metal  ave running start 1000
+
+# NEEDED TO COMPUTE THERMAL EXPANSION TENSOR
+fix           avg_a_metal all ave/time 5 20 100 v_a_metal ave running start 1000
+fix           avg_b_metal all ave/time 5 20 100 v_b_metal ave running start 1000
+fix           avg_c_metal all ave/time 5 20 100 v_c_metal ave running start 1000
+fix           ave_alpha   all ave/time 5 20 100 v_rawalpha   ave running start 1000
+fix           ave_beta    all ave/time 5 20 100 v_rawbeta    ave running start 1000
+fix           ave_gamma   all ave/time 5 20 100 v_rawgamma   ave running start 1000
+
+# extract fix quantities into variables so they can be used in if-else logic later.
+variable      T equal f_avgmyTemp
+variable      P equal f_avgmyPress
+variable      V equal f_avgmyVol
+
+# NEEDED TO COMPUTE THERMAL EXPANSION TENSOR
+variable      a equal f_avg_a_metal
+variable      b equal f_avg_b_metal
+variable      c equal f_avg_c_metal
+variable      alpha equal f_ave_alpha
+variable      beta equal f_ave_beta
+variable      gamma equal f_ave_gamma
+
+# set error bounds for temperature and pressure in original metal units (K and bar)
+variable      T_low equal  "{rpls_temp} - 1.0"
+variable      T_up  equal  "{rpls_temp} + 1.0"
+variable      P_low equal  "{rpls_press} - 5.0"
+variable      P_up  equal  "{rpls_press} + 5.0"
+
+## print to logfile every 1000 timesteps
+#thermo_style  custom step etotal pe &
+#              temp vol press &
+#              v_a v_b v_c v_alpha v_beta v_gamma
+#thermo        1000
+
+##NEW POSITION AVERAGING
+variable xlo_metal equal xlo/${{_u_distance}}
+variable xhi_metal equal xhi/${{_u_distance}}
+variable ylo_metal equal ylo/${{_u_distance}}
+variable yhi_metal equal yhi/${{_u_distance}}
+variable zlo_metal equal zlo/${{_u_distance}}
+variable zhi_metal equal zhi/${{_u_distance}}
+variable xy_metal equal xy/${{_u_distance}}
+variable xz_metal equal xz/${{_u_distance}}
+variable yz_metal equal yz/${{_u_distance}}
+
+# Set up logging of thermodynamic information.
+thermo_style custom step etotal pe &
+                temp vol press &
+                v_xlo_metal v_xhi_metal v_ylo_metal v_yhi_metal v_zlo_metal v_zhi_metal &
+                v_xy_metal v_xz_metal v_yz_metal
+thermo 1000
+
+# Store unwrapped coordinates for every atom. 
+# Note that Lammps cannot store scaled unwrapped coordinates (it can only dump them).
+# This is why we have to implement the scaling ourselves.
+compute up all property/atom xu yu zu
+
+# In Lammps, the unscaled (x, y, z) coordinates are connected to the scaled (xs, ys, zs) 
+# coordinates as (x-xlo, y-ylo, z-zlo) = xs a + ys b + zs c, where (a, b, c) are the 
+# non-orthogonal vectors of the simulation box edges (see https://docs.lammps.org/dump.html). 
+# This means that (x, y, z)^T = M (xs, ys, zs)^T, where we used matrix multiplication and the 
+#  matrix M is given by (see https://docs.lammps.org/Howto_triclinic.html):
+#     (xhi-xlo    xy        xz  )
+# M = (   0    yhi - ylo    yz  )
+#     (   0       0      zhi-zlo)
+# This matrix can be inverted to yield the equations that are implemented below to obtain the scaled 
+# unwrapped positions from the unwrapped positions.
+# Note that for the scaled coordinates no unit conversion is necessary.
+variable xsu atom "(c_up[1]-xlo)/(xhi-xlo) - (xy*(c_up[2]-ylo))/((xhi-xlo)*(yhi-ylo)) + ((xy*yz-(yhi-ylo)*xz)*(c_up[3]-zlo))/((xhi-xlo)*(yhi-ylo)*(zhi-zlo))"
+variable ysu atom "(c_up[2]-ylo)/(yhi-ylo) - (yz*(c_up[3]-zlo))/((yhi-ylo)*(zhi-zlo))"
+variable zsu atom "(c_up[3]-zlo)/(zhi-zlo)"
+
+# Since Lammps can dump scaled unwrapped coordinates, one can test above variables by including the following two lines:
+# dump test all custom 10000 output/test.dump.* id xsu ysu zsu v_xsu v_ysu v_zsu
+# dump_modify test delay 10000
+
+# Average the scaled unwrapped positions.
+# Note that kim-convergence interrupts simulations after 10000 timesteps.
+# We write out the average scaled unwrapped positions after every 10000 timesteps.
+fix avePos all ave/atom 1 1000 1000 v_xsu v_ysu v_zsu
+dump avePosDump all custom 1000 {average_position_filename} id element f_avePos[1] f_avePos[2] f_avePos[3]
+
+# Prevent dump at timestep 0.
+dump_modify avePosDump delay 1000
+dump_modify avePosDump element {rpls_species}
+
+# Average the cell information.
+variable lx_metal equal "v_xhi_metal - v_xlo_metal"
+variable ly_metal equal "v_yhi_metal - v_ylo_metal"
+variable lz_metal equal "v_zhi_metal - v_zlo_metal"
+fix aveCell all ave/time 1 1000 1000 v_lx_metal v_ly_metal v_lz_metal v_xy_metal v_xz_metal v_yz_metal file {average_cell_filename}
+
+# Run a simulation for at most 2000*1000 timesteps. At each 1000th time step, check
+# whether the temperature and pressure have converged. If yes, break.
+label top
+variable aa loop 2000
+run 1000
+if "${{V_metal}}>${{V0_metal_times1000}}" then "jump SELF unstable"
+if "${{T}}>${{T_low}} && ${{T}}<${{T_up}} && ${{P}}>${{P_low}} && ${{P}}<${{P_up}}" then "jump SELF break"
+print "flag: Temp = ${{T}}, Press = ${{P}}"
+next aa
+jump SELF top
+label break
+
+# Write final averaged volume to file if temperature and volume have converged; otherwise wirte a
+# flag to indicate non-convergence.
+variable      myStep equal step
+# NEEDED TO COMPUTE THERMAL EXPANSION TENSOR
+if "${{myStep}} < 2000000" then "print '${{a}} ${{b}} ${{c}} ${{alpha}} ${{beta}} ${{gamma}}' file {rpls_vol_file}" &
+else  "print 'not_converged'  file {rpls_vol_file}"
+
+print "LAMMPS calculation completed"
+quit 0
+
+# unstable
+label unstable
+print "ERROR: System volume ${{V_metal}} A^3 has become larger than ${{V0_metal_times1000}} A^3. Aborting calculation."

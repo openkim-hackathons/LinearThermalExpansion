@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+
+from test_driver import TestDriver
+from ast import literal_eval
+
+# model_name = input("Model name?")
+init_args = literal_eval(input("Initialization arguments (dictionary)?"))
+run_args = literal_eval(input("Run arguments (dictonary)?"))
+test = TestDriver(**init_args)
+test(**run_args)

@@ -1,0 +1,15 @@
+{
+  "title" "Linear thermal expansion coefficient of {{lattice}} {{symbol[0]|upper}}{{symbol[1:]}} at {{temperature}} K under a pressure of {{pressure}} MPa v{{version}}{# FILENAME = kimspec.edn #}"
+  "extended-id" "LinearThermalExpansionCoeff_{{lattice}}_{{symbol[0]|upper}}{{symbol[1:]}}__TE_{{kimnum}}_{{version}}"
+  "test-driver" "{{TEST_DRIVER_NAME}}"
+  "species" ["{{symbol}}"]
+  "developer" ["5ca58a6a-aa46-4e5a-a2e1-b3fc6bc2efa6","66443d60-a76c-472c-987e-dd80fde07aae"]
+  "description" "Linear thermal expansion coefficient of a {{lattice}} lattice of {{symbol[0]|upper}}{{symbol[1:]}} atoms at a temperature of {{temperature}} K under a pressure of {{pressure}} MPa."
+  "contributor-id" "5ca58a6a-aa46-4e5a-a2e1-b3fc6bc2efa6"
+  "maintainer-id" "5ca58a6a-aa46-4e5a-a2e1-b3fc6bc2efa6"
+  "matching-models" ["standard-models"]
+  "publication-year" "2024"
+  "kim-api-version" "2.3.0"
+  "executables" ["runner"]
+  "domain" "openkim.org"
+}

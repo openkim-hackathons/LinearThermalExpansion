@@ -1,0 +1,34 @@
+@< path("{{TEST_DRIVER_NAME}}") >@ {# FILENAME = pipeline.stdin.tpl #}
+@< MODELNAME >@
+{{symbol}}
+{{mass}}
+{{lattice}}
+@< query({
+  "flat": "on",
+  "database": "data",
+  "fields": {
+    "meta.runner.kimcode": 1,
+    "a.si-value": 1
+  },
+  "limit": 1,
+  "query": {
+    "meta.runner.kimcode": {
+      "$regex":{{
+        query({
+          "project": ["shortcode"],
+          "query": {
+            "kimcode": {
+              "$options": "",
+              "$regex": "LatticeConstantCubicEnergy_"+lattice+"_"+symbol.capitalize()+"__TE_"
+            }
+          },
+          "limit": 1, "database": "obj"
+        })
+      }}
+    },
+    "meta.subject.kimcode": MODELNAME
+  },
+  "project":["a.si-value"]
+}) >@
+{{temperature}}
+{{pressure}}

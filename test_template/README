@@ -1,0 +1,32 @@
+# Author: Mingjian Wen, wenxx151@umn.edu, University of Minnesota
+# Date: 2019-06-10
+
+
+This LAMMPS Test uses the {{TEST_DRIVER_NAME}} Test Driver to compute the
+linear thermal expansion coefficient of a {{lattice}} lattice of Al atoms at
+{{temperature}} K at a pressure of {{pressure}} MPa.
+
+The following files are in the directory (before any compilation is performed):
+
+LICENSE
+     The GNU Lesser General Public License (GLGPL) Version 2.1 file.
+
+Makefile
+     Makefile to build executables with GNU or Intel compilers (empty here).
+
+README
+     This file.
+
+dependencies.edn
+     File that lists the KIM lattice constant Test from which this Test needs
+     to query the result for the current Model being run against.
+
+runner
+     Executable that calls the Test Driver's executable.
+
+pipeline.stdin.tpl
+     Template file which is used to query for the relevant lattice constant and
+     pass it to the runner on stdin.
+
+kimspec.edn
+     Metadata file specific to KIM.

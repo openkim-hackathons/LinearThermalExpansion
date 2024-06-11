@@ -1,0 +1,23 @@
+{
+    "contributor-id" "5ca58a6a-aa46-4e5a-a2e1-b3fc6bc2efa6" 
+    "description" "This Test Driver uses LAMMPS to compute the linear thermal expansion coefficient at a finite temperature under a given pressure for a cubic lattice (fcc, bcc, sc, diamond) of a single given species." 
+    "developer" [
+        "5ca58a6a-aa46-4e5a-a2e1-b3fc6bc2efa6",
+        "66443d60-a76c-472c-987e-dd80fde07aae"
+    ] 
+    "doi" "10.25950/9d9822ec"
+    "domain" "openkim.org" 
+    "executables" [
+        "runner" 
+        "test_template/runner"
+    ] 
+    "extended-id" "LinearThermalExpansionCoeffCubic__TD_522633393614_002" 
+    "kim-api-version" "2.3.0" 
+    "maintainer-id" "5ca58a6a-aa46-4e5a-a2e1-b3fc6bc2efa6" 
+    "properties" [
+        "tag:staff@noreply.openkim.org,2015-07-30:property/linear-thermal-expansion-coefficient-cubic-crystal-npt"
+    ] 
+    "publication-year" "2024" 
+    "simulator-name" "LAMMPS" 
+    "title" "Linear thermal expansion coefficient of cubic crystal structures v002"
+}
